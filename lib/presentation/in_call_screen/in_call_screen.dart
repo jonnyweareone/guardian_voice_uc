@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:gv_core/gv_core.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/custom_icon_widget.dart';
 import './widgets/call_controls_widget.dart';
 import './widgets/call_options_widget.dart';
 import './widgets/call_status_widget.dart';
@@ -24,6 +27,12 @@ class _InCallScreenState extends State<InCallScreen>
   bool _isRecording = false;
   bool _showOptions = false;
 
+  // Real call data from navigation arguments
+  String? _callId;
+  String? _sipUri;
+  Map<String, dynamic>? _contact;
+  bool _isIncoming = false;
+
   // Call timer
   late DateTime _callStartTime;
   String _callDuration = "00:00";
@@ -34,32 +43,24 @@ class _InCallScreenState extends State<InCallScreen>
   late Animation<double> _pulseAnimation;
   late Animation<Offset> _slideAnimation;
 
-  // Mock caller data
-  final Map<String, dynamic> _callerData = {
-    "name": "Sarah Johnson",
-    "number": "+1 (555) 123-4567",
-    "photo":
-        "https://images.unsplash.com/photo-1494790108755-2616b612b786?fm=jpg&q=60&w=400&ixlib=rb-4.0.3",
-    "company": "TechCorp Solutions",
-    "isContact": true,
-  };
-
-  // Mock call status data
-  final Map<String, dynamic> _callStatus = {
-    "connectionQuality": "excellent",
-    "isEncrypted": true,
-    "networkType": "WiFi",
-    "callState": "connected",
-    "codec": "G.722",
-    "bandwidth": "64 kbps",
-  };
-
   @override
   void initState() {
     super.initState();
+    _extractCallArguments();
     _initializeCall();
     _setupAnimations();
     _startCallTimer();
+  }
+
+  void _extractCallArguments() {
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null) {
+      _callId = args['callId'];
+      _sipUri = args['sipUri'];
+      _contact = args['contact'];
+      _isIncoming = args['isIncoming'] ?? false;
+    }
   }
 
   void _initializeCall() {
@@ -90,21 +91,16 @@ class _InCallScreenState extends State<InCallScreen>
       vsync: this,
     );
 
-    _pulseAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.1,
-    ).animate(CurvedAnimation(
-      parent: _pulseController,
-      curve: Curves.easeInOut,
-    ));
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
 
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 1),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: Curves.easeInOut,
-    ));
+    ).animate(
+      CurvedAnimation(parent: _slideController, curve: Curves.easeInOut),
+    );
 
     _pulseController.repeat(reverse: true);
   }
@@ -142,22 +138,26 @@ class _InCallScreenState extends State<InCallScreen>
     super.dispose();
   }
 
-  void _handleMuteToggle() {
-    setState(() {
-      _isMuted = !_isMuted;
-    });
+  Future<void> _handleMuteToggle() async {
+    try {
+      await GVCore.I.mute(_callId ?? '', !_isMuted);
 
-    // Haptic feedback
-    HapticFeedback.lightImpact();
+      setState(() {
+        _isMuted = !_isMuted;
+      });
 
-    // Show toast notification
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_isMuted ? 'Microphone muted' : 'Microphone unmuted'),
-        duration: const Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+      HapticFeedback.lightImpact();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isMuted ? 'Microphone muted' : 'Microphone unmuted'),
+          duration: const Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      print('Mute toggle failed: $e');
+    }
   }
 
   void _handleSpeakerToggle() {
@@ -166,6 +166,9 @@ class _InCallScreenState extends State<InCallScreen>
     });
 
     HapticFeedback.lightImpact();
+
+    // Real speaker toggle would be handled by native audio session management
+    // in the gv_core plugin (iOS: GvAudio.speaker(), Android: AudioManager)
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -176,20 +179,26 @@ class _InCallScreenState extends State<InCallScreen>
     );
   }
 
-  void _handleHoldToggle() {
-    setState(() {
-      _isOnHold = !_isOnHold;
-    });
+  Future<void> _handleHoldToggle() async {
+    try {
+      await GVCore.I.hold(_callId ?? '', !_isOnHold);
 
-    HapticFeedback.mediumImpact();
+      setState(() {
+        _isOnHold = !_isOnHold;
+      });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(_isOnHold ? 'Call on hold' : 'Call resumed'),
-        duration: const Duration(seconds: 1),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+      HapticFeedback.mediumImpact();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isOnHold ? 'Call on hold' : 'Call resumed'),
+          duration: const Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      print('Hold toggle failed: $e');
+    }
   }
 
   void _handleAddCall() {
@@ -197,24 +206,26 @@ class _InCallScreenState extends State<InCallScreen>
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Call'),
-        content: const Text(
-            'This feature allows you to add another participant to the call.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Add Call'),
+            content: const Text(
+              'This feature allows you to add another participant to the call.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // Navigate to contacts or dialer
+                },
+                child: const Text('Add'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Navigate to contacts or dialer
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -223,32 +234,34 @@ class _InCallScreenState extends State<InCallScreen>
     Navigator.pushNamed(context, '/dtmf-keypad');
   }
 
-  void _handleEndCall() {
+  Future<void> _handleEndCall() async {
     HapticFeedback.heavyImpact();
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('End Call'),
-        content: const Text('Are you sure you want to end this call?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, '/main-dashboard');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.getErrorColor(true),
-            ),
-            child: const Text('End Call'),
-          ),
-        ],
-      ),
-    );
+    try {
+      await GVCore.I.hangup(_callId ?? '');
+
+      Navigator.pushReplacementNamed(context, '/main-dashboard');
+    } catch (e) {
+      print('End call failed: $e');
+      // Still navigate back on error
+      Navigator.pushReplacementNamed(context, '/main-dashboard');
+    }
+  }
+
+  Future<void> _handleAnswerCall() async {
+    if (!_isIncoming || _callId == null) return;
+
+    try {
+      await GVCore.I.answer(_callId!);
+
+      setState(() {
+        _isIncoming = false; // Mark as answered
+      });
+
+      HapticFeedback.lightImpact();
+    } catch (e) {
+      print('Answer call failed: $e');
+    }
   }
 
   void _handleAudioDevicePicker() {
@@ -276,23 +289,26 @@ class _InCallScreenState extends State<InCallScreen>
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Transfer Call'),
-        content: const Text('Transfer this call to another number or contact.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Transfer Call'),
+            content: const Text(
+              'Transfer this call to another number or contact.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // Navigate to transfer interface
+                },
+                child: const Text('Transfer'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Navigate to transfer interface
-            },
-            child: const Text('Transfer'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -306,7 +322,8 @@ class _InCallScreenState extends State<InCallScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-            _isRecording ? 'Call recording started' : 'Call recording stopped'),
+          _isRecording ? 'Call recording started' : 'Call recording stopped',
+        ),
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
         backgroundColor: _isRecording ? AppTheme.getErrorColor(true) : null,
@@ -319,24 +336,26 @@ class _InCallScreenState extends State<InCallScreen>
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Conference Call'),
-        content:
-            const Text('Start a conference call with multiple participants.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Conference Call'),
+            content: const Text(
+              'Start a conference call with multiple participants.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  // Navigate to conference interface
+                },
+                child: const Text('Start Conference'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Navigate to conference interface
-            },
-            child: const Text('Start Conference'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -354,6 +373,17 @@ class _InCallScreenState extends State<InCallScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Update caller data to use real call information
+    final Map<String, dynamic> callerData =
+        _contact ??
+        {
+          "name": _isIncoming ? "Incoming Call" : "Outgoing Call",
+          "number": _sipUri ?? "Unknown",
+          "photo": null,
+          "company": "",
+          "isContact": _contact != null,
+        };
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -373,10 +403,7 @@ class _InCallScreenState extends State<InCallScreen>
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Colors.black.withValues(alpha: 0.8),
-                  Colors.black,
-                ],
+                colors: [Colors.black.withValues(alpha: 0.8), Colors.black],
               ),
             ),
             child: Column(
@@ -390,7 +417,7 @@ class _InCallScreenState extends State<InCallScreen>
                       return Transform.scale(
                         scale: _isOnHold ? 0.95 : _pulseAnimation.value,
                         child: CallerInfoWidget(
-                          callerData: _callerData,
+                          callerData: callerData,
                           callDuration: _callDuration,
                         ),
                       );
@@ -401,19 +428,20 @@ class _InCallScreenState extends State<InCallScreen>
                 // Middle section - Call Status
                 Expanded(
                   flex: 1,
-                  child: CallStatusWidget(
-                    callStatus: _callStatus,
-                  ),
+                  child: CallStatusWidget(callStatus: _callStatus),
                 ),
 
                 // Warning banner for poor connection
                 if (_callStatus['connectionQuality'] == 'poor')
                   Container(
                     width: double.infinity,
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 6.w, vertical: 1.h),
-                    color:
-                        AppTheme.getWarningColor(true).withValues(alpha: 0.2),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 6.w,
+                      vertical: 1.h,
+                    ),
+                    color: AppTheme.getWarningColor(
+                      true,
+                    ).withValues(alpha: 0.2),
                     child: Row(
                       children: [
                         CustomIconWidget(
@@ -424,10 +452,8 @@ class _InCallScreenState extends State<InCallScreen>
                         SizedBox(width: 2.w),
                         Text(
                           'Poor connection quality',
-                          style:
-                              AppTheme.lightTheme.textTheme.bodySmall?.copyWith(
-                            color: AppTheme.getWarningColor(true),
-                          ),
+                          style: AppTheme.lightTheme.textTheme.bodySmall
+                              ?.copyWith(color: AppTheme.getWarningColor(true)),
                         ),
                       ],
                     ),
@@ -468,8 +494,9 @@ class _InCallScreenState extends State<InCallScreen>
                   height: 0.5.h,
                   margin: EdgeInsets.only(bottom: 2.h),
                   decoration: BoxDecoration(
-                    color: AppTheme.lightTheme.colorScheme.surface
-                        .withValues(alpha: 0.3),
+                    color: AppTheme.lightTheme.colorScheme.surface.withValues(
+                      alpha: 0.3,
+                    ),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

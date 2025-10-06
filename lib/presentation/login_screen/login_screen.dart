@@ -2,9 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:gv_core/gv_core.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/custom_icon_widget.dart';
 import './widgets/advanced_settings_widget.dart';
 import './widgets/biometric_auth_widget.dart';
 import './widgets/password_input_widget.dart';
@@ -23,9 +26,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _sipServerController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _portController = TextEditingController(text: '5060');
+  final _portController = TextEditingController(text: '6061');
 
-  String _selectedTransport = 'UDP';
+  String _selectedTransport = 'TLS';
   bool _isLoading = false;
   bool _rememberCredentials = false;
 
@@ -35,29 +38,19 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _passwordError;
   String? _generalError;
 
-  // Mock credentials for testing
-  final Map<String, Map<String, String>> _mockCredentials = {
-    'admin': {
-      'server': 'sip.guardianvoice.com',
-      'username': 'admin@guardianvoice.com',
-      'password': 'Admin123!',
-    },
-    'user': {
-      'server': 'sip.guardianvoice.com',
-      'username': 'user@guardianvoice.com',
-      'password': 'User123!',
-    },
-    'manager': {
-      'server': 'sip.guardianvoice.com',
-      'username': 'manager@guardianvoice.com',
-      'password': 'Manager123!',
-    },
-  };
-
   @override
   void initState() {
     super.initState();
     _loadSavedCredentials();
+    _initializeGVCore();
+  }
+
+  Future<void> _initializeGVCore() async {
+    try {
+      await GVCore.I.initialize(enablePush: true);
+    } catch (e) {
+      print('GVCore initialization failed: $e');
+    }
   }
 
   @override
@@ -144,50 +137,34 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      // Simulate authentication delay
-      await Future.delayed(const Duration(seconds: 2));
+      // Real SIP registration using gv_core
+      await GVCore.I.setAccount(
+        username: _usernameController.text,
+        domain: _sipServerController.text,
+        password: _passwordController.text,
+        tls: _selectedTransport == 'TLS',
+        port: int.tryParse(_portController.text) ?? 6061,
+        srtp: true,
+        stun: 'turn.guardianvoice.com',
+      );
 
-      // Check mock credentials
-      bool isValidCredentials = false;
-      for (var credentials in _mockCredentials.values) {
-        if (_sipServerController.text.toLowerCase() ==
-                credentials['server']!.toLowerCase() &&
-            _usernameController.text.toLowerCase() ==
-                credentials['username']!.toLowerCase() &&
-            _passwordController.text == credentials['password']) {
-          isValidCredentials = true;
-          break;
-        }
-      }
+      // Success - provide haptic feedback
+      HapticFeedback.lightImpact();
 
-      if (isValidCredentials) {
-        // Success - provide haptic feedback
-        HapticFeedback.lightImpact();
+      // Show success toast
+      Fluttertoast.showToast(
+        msg: "Registration successful! Connected to SIP server...",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: AppTheme.lightTheme.colorScheme.tertiary,
+        textColor: AppTheme.lightTheme.colorScheme.onTertiary,
+      );
 
-        // Show success toast
-        Fluttertoast.showToast(
-          msg: "Login successful! Connecting to SIP server...",
-          toastLength: Toast.LENGTH_SHORT,
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: AppTheme.lightTheme.colorScheme.tertiary,
-          textColor: AppTheme.lightTheme.colorScheme.onTertiary,
-        );
-
-        // Navigate to main dashboard
-        Navigator.pushReplacementNamed(context, '/main-dashboard');
-      } else {
-        // Invalid credentials
-        setState(() {
-          _generalError =
-              'Invalid SIP credentials. Please check your server, username, and password.';
-        });
-
-        HapticFeedback.heavyImpact();
-      }
+      // Navigate to main dashboard
+      Navigator.pushReplacementNamed(context, '/main-dashboard');
     } catch (e) {
       setState(() {
-        _generalError =
-            'Connection failed. Please check your network and try again.';
+        _generalError = 'SIP registration failed: ${e.toString()}';
       });
 
       HapticFeedback.heavyImpact();
@@ -293,11 +270,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   Text(
                     'Guardian Voice UC',
-                    style:
-                        AppTheme.lightTheme.textTheme.headlineMedium?.copyWith(
-                      color: AppTheme.lightTheme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: AppTheme.lightTheme.textTheme.headlineMedium
+                        ?.copyWith(
+                          color: AppTheme.lightTheme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
                     textAlign: TextAlign.center,
                   ),
 
@@ -339,9 +316,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               _generalError!,
                               style: AppTheme.lightTheme.textTheme.bodySmall
                                   ?.copyWith(
-                                color: AppTheme
-                                    .lightTheme.colorScheme.onErrorContainer,
-                              ),
+                                    color:
+                                        AppTheme
+                                            .lightTheme
+                                            .colorScheme
+                                            .onErrorContainer,
+                                  ),
                             ),
                           ),
                         ],
@@ -384,11 +364,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: _handleForgotPassword,
                       child: Text(
                         'Forgot Password?',
-                        style:
-                            AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.lightTheme.colorScheme.primary,
-                          decoration: TextDecoration.underline,
-                        ),
+                        style: AppTheme.lightTheme.textTheme.bodyMedium
+                            ?.copyWith(
+                              color: AppTheme.lightTheme.colorScheme.primary,
+                              decoration: TextDecoration.underline,
+                            ),
                       ),
                     ),
                   ),
@@ -424,41 +404,51 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _handleLogin,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _isFormValid()
-                            ? AppTheme.lightTheme.colorScheme.primary
-                            : AppTheme.lightTheme.colorScheme.onSurface
-                                .withValues(alpha: 0.12),
-                        foregroundColor: _isFormValid()
-                            ? AppTheme.lightTheme.colorScheme.onPrimary
-                            : AppTheme.lightTheme.colorScheme.onSurface
-                                .withValues(alpha: 0.38),
+                        backgroundColor:
+                            _isFormValid()
+                                ? AppTheme.lightTheme.colorScheme.primary
+                                : AppTheme.lightTheme.colorScheme.onSurface
+                                    .withValues(alpha: 0.12),
+                        foregroundColor:
+                            _isFormValid()
+                                ? AppTheme.lightTheme.colorScheme.onPrimary
+                                : AppTheme.lightTheme.colorScheme.onSurface
+                                    .withValues(alpha: 0.38),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(3.w),
                         ),
                         elevation: _isFormValid() ? 2 : 0,
                       ),
-                      child: _isLoading
-                          ? SizedBox(
-                              width: 6.w,
-                              height: 6.w,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppTheme.lightTheme.colorScheme.onPrimary,
+                      child:
+                          _isLoading
+                              ? SizedBox(
+                                width: 6.w,
+                                height: 6.w,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    AppTheme.lightTheme.colorScheme.onPrimary,
+                                  ),
                                 ),
+                              )
+                              : Text(
+                                'Login',
+                                style: AppTheme.lightTheme.textTheme.titleMedium
+                                    ?.copyWith(
+                                      color:
+                                          _isFormValid()
+                                              ? AppTheme
+                                                  .lightTheme
+                                                  .colorScheme
+                                                  .onPrimary
+                                              : AppTheme
+                                                  .lightTheme
+                                                  .colorScheme
+                                                  .onSurface
+                                                  .withValues(alpha: 0.38),
+                                      fontWeight: FontWeight.w600,
+                                    ),
                               ),
-                            )
-                          : Text(
-                              'Login',
-                              style: AppTheme.lightTheme.textTheme.titleMedium
-                                  ?.copyWith(
-                                color: _isFormValid()
-                                    ? AppTheme.lightTheme.colorScheme.onPrimary
-                                    : AppTheme.lightTheme.colorScheme.onSurface
-                                        .withValues(alpha: 0.38),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
                     ),
                   ),
 
@@ -517,10 +507,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 'Test Credentials',
                                 style: AppTheme.lightTheme.textTheme.titleSmall
                                     ?.copyWith(
-                                  color: AppTheme.lightTheme.colorScheme
-                                      .onTertiaryContainer,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                      color:
+                                          AppTheme
+                                              .lightTheme
+                                              .colorScheme
+                                              .onTertiaryContainer,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                               ),
                             ],
                           ),
@@ -529,10 +522,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             'Server: sip.guardianvoice.com\nAdmin: admin@guardianvoice.com / Admin123!\nUser: user@guardianvoice.com / User123!',
                             style: AppTheme.lightTheme.textTheme.bodySmall
                                 ?.copyWith(
-                              color: AppTheme
-                                  .lightTheme.colorScheme.onTertiaryContainer,
-                              fontFamily: 'monospace',
-                            ),
+                                  color:
+                                      AppTheme
+                                          .lightTheme
+                                          .colorScheme
+                                          .onTertiaryContainer,
+                                  fontFamily: 'monospace',
+                                ),
                           ),
                         ],
                       ),

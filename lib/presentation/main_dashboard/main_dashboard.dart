@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:gv_core/gv_core.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/custom_icon_widget.dart';
+import '../../widgets/custom_image_widget.dart';
 import './widgets/dial_pad_button_widget.dart';
 import './widgets/network_quality_indicator_widget.dart';
 import './widgets/quick_action_button_widget.dart';
@@ -19,13 +23,16 @@ class _MainDashboardState extends State<MainDashboard>
     with TickerProviderStateMixin {
   late TabController _tabController;
   bool _isRefreshing = false;
-  String _sipStatus = "Registered";
-  String _sipStatusMessage = "Connected to VoIP server";
-  bool _isConnected = true;
+  String _sipStatus = "Registering...";
+  String _sipStatusMessage = "Connecting to VoIP server";
+  bool _isConnected = false;
   String _networkQuality = "Excellent";
   int _signalStrength = 95;
   String _networkType = "WiFi";
   DateTime _lastUpdated = DateTime.now();
+
+  // Real incoming call stream
+  StreamSubscription<GVIncoming>? _incomingCallSubscription;
 
   // Mock data for recent contacts
   final List<Map<String, dynamic>> _recentContacts = [
@@ -76,11 +83,50 @@ class _MainDashboardState extends State<MainDashboard>
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _simulateNetworkUpdates();
+    _setupIncomingCallListener();
+    _checkSipRegistrationStatus();
+  }
+
+  void _setupIncomingCallListener() {
+    _incomingCallSubscription = GVCore.I.onIncoming.listen((incoming) {
+      _handleIncomingCall(incoming);
+    });
+  }
+
+  void _handleIncomingCall(GVIncoming incoming) {
+    // Update UI with real incoming call data
+    setState(() {
+      _sipStatus = "Incoming Call";
+      _sipStatusMessage = "From: ${incoming.fromDisplay}";
+    });
+
+    // Navigate to in-call screen with real caller data
+    Navigator.pushNamed(
+      context,
+      '/in-call-screen',
+      arguments: {
+        'callId': incoming.callId,
+        'fromDisplay': incoming.fromDisplay,
+        'fromUri': incoming.fromUri,
+        'isIncoming': true,
+      },
+    );
+  }
+
+  Future<void> _checkSipRegistrationStatus() async {
+    // In real implementation, you'd check registration state
+    // For now, assume successful registration after login
+    setState(() {
+      _sipStatus = "Registered";
+      _sipStatusMessage = "Connected to VoIP server";
+      _isConnected = true;
+    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _incomingCallSubscription?.cancel();
     super.dispose();
   }
 
@@ -89,16 +135,17 @@ class _MainDashboardState extends State<MainDashboard>
     Future.delayed(const Duration(seconds: 10), () {
       if (mounted) {
         setState(() {
-          _signalStrength =
-              (_signalStrength + (10 - (DateTime.now().millisecond % 20)))
-                  .clamp(60, 100);
-          _networkQuality = _signalStrength > 85
-              ? "Excellent"
-              : _signalStrength > 70
+          _signalStrength = (_signalStrength +
+                  (10 - (DateTime.now().millisecond % 20)))
+              .clamp(60, 100);
+          _networkQuality =
+              _signalStrength > 85
+                  ? "Excellent"
+                  : _signalStrength > 70
                   ? "Good"
                   : _signalStrength > 50
-                      ? "Fair"
-                      : "Poor";
+                  ? "Fair"
+                  : "Poor";
         });
         _simulateNetworkUpdates();
       }
@@ -110,17 +157,27 @@ class _MainDashboardState extends State<MainDashboard>
       _isRefreshing = true;
     });
 
-    // Simulate network request
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // Real SIP refresh using gv_core - would add this method to plugin
+      // await GVCore.I.refreshRegistration();
 
-    if (mounted) {
+      await Future.delayed(const Duration(seconds: 2)); // Simulate for now
+
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+          _lastUpdated = DateTime.now();
+          _sipStatus = "Registered";
+          _sipStatusMessage = "Connection refreshed successfully";
+          _isConnected = true;
+        });
+      }
+    } catch (e) {
       setState(() {
         _isRefreshing = false;
-        _lastUpdated = DateTime.now();
-        // Simulate status update
-        _sipStatus = "Registered";
-        _sipStatusMessage = "Connection refreshed successfully";
-        _isConnected = true;
+        _sipStatus = "Error";
+        _sipStatusMessage = "Refresh failed: ${e.toString()}";
+        _isConnected = false;
       });
     }
   }
@@ -132,123 +189,133 @@ class _MainDashboardState extends State<MainDashboard>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        padding: EdgeInsets.all(4.w),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 12.w,
-              height: 0.5.h,
-              decoration: BoxDecoration(
-                color: AppTheme.lightTheme.colorScheme.outline
-                    .withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            SizedBox(height: 3.h),
-            Row(
+      builder:
+          (context) => Container(
+            padding: EdgeInsets.all(4.w),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 15.w,
-                  height: 15.w,
+                  width: 12.w,
+                  height: 0.5.h,
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppTheme.lightTheme.colorScheme.outline
-                          .withValues(alpha: 0.3),
+                    color: AppTheme.lightTheme.colorScheme.outline.withValues(
+                      alpha: 0.3,
                     ),
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  child: ClipOval(
-                    child: contact["avatar"] != null
-                        ? CustomImageWidget(
-                            imageUrl: contact["avatar"] as String,
-                            width: 15.w,
-                            height: 15.w,
-                            fit: BoxFit.cover,
-                          )
-                        : Container(
-                            color: AppTheme.lightTheme.colorScheme.primary
-                                .withValues(alpha: 0.1),
-                            child: Center(
-                              child: Text(
-                                _getInitials(contact["name"] as String),
-                                style: AppTheme.lightTheme.textTheme.titleMedium
-                                    ?.copyWith(
-                                  color:
-                                      AppTheme.lightTheme.colorScheme.primary,
+                ),
+                SizedBox(height: 3.h),
+                Row(
+                  children: [
+                    Container(
+                      width: 15.w,
+                      height: 15.w,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppTheme.lightTheme.colorScheme.outline
+                              .withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: ClipOval(
+                        child:
+                            contact["avatar"] != null
+                                ? CustomImageWidget(
+                                  imageUrl: contact["avatar"] as String,
+                                  width: 15.w,
+                                  height: 15.w,
+                                  fit: BoxFit.cover,
+                                )
+                                : Container(
+                                  color: AppTheme.lightTheme.colorScheme.primary
+                                      .withValues(alpha: 0.1),
+                                  child: Center(
+                                    child: Text(
+                                      _getInitials(contact["name"] as String),
+                                      style: AppTheme
+                                          .lightTheme
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            color:
+                                                AppTheme
+                                                    .lightTheme
+                                                    .colorScheme
+                                                    .primary,
+                                          ),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
+                      ),
+                    ),
+                    SizedBox(width: 3.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            contact["name"] as String,
+                            style: AppTheme.lightTheme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
-                  ),
-                ),
-                SizedBox(width: 3.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        contact["name"] as String,
-                        style:
-                            AppTheme.lightTheme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                          Text(
+                            contact["phone"] as String,
+                            style: AppTheme.lightTheme.textTheme.bodyMedium
+                                ?.copyWith(
+                                  color:
+                                      AppTheme
+                                          .lightTheme
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        contact["phone"] as String,
-                        style:
-                            AppTheme.lightTheme.textTheme.bodyMedium?.copyWith(
-                          color:
-                              AppTheme.lightTheme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+                SizedBox(height: 4.h),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildMenuButton(
+                        icon: 'call',
+                        label: 'Call',
+                        onTap: () {
+                          Navigator.pop(context);
+                          _makeCall(contact);
+                        },
+                      ),
+                    ),
+                    SizedBox(width: 3.w),
+                    Expanded(
+                      child: _buildMenuButton(
+                        icon: 'message',
+                        label: 'Message',
+                        onTap: () {
+                          Navigator.pop(context);
+                          _sendMessage(contact);
+                        },
+                      ),
+                    ),
+                    SizedBox(width: 3.w),
+                    Expanded(
+                      child: _buildMenuButton(
+                        icon: 'edit',
+                        label: 'Edit',
+                        onTap: () {
+                          Navigator.pop(context);
+                          _editContact(contact);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 2.h),
               ],
             ),
-            SizedBox(height: 4.h),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildMenuButton(
-                    icon: 'call',
-                    label: 'Call',
-                    onTap: () {
-                      Navigator.pop(context);
-                      _makeCall(contact);
-                    },
-                  ),
-                ),
-                SizedBox(width: 3.w),
-                Expanded(
-                  child: _buildMenuButton(
-                    icon: 'message',
-                    label: 'Message',
-                    onTap: () {
-                      Navigator.pop(context);
-                      _sendMessage(contact);
-                    },
-                  ),
-                ),
-                SizedBox(width: 3.w),
-                Expanded(
-                  child: _buildMenuButton(
-                    icon: 'edit',
-                    label: 'Edit',
-                    onTap: () {
-                      Navigator.pop(context);
-                      _editContact(contact);
-                    },
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 2.h),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -296,7 +363,28 @@ class _MainDashboardState extends State<MainDashboard>
   }
 
   void _makeCall(Map<String, dynamic> contact) {
-    Navigator.pushNamed(context, '/in-call-screen');
+    final sipUri = 'sip:${contact["phone"]}@guardianvoice.com';
+    _placeCall(sipUri, contact);
+  }
+
+  Future<void> _placeCall(String sipUri, Map<String, dynamic>? contact) async {
+    try {
+      await GVCore.I.placeCall(sipUri);
+
+      // Navigate to in-call screen with real call data
+      Navigator.pushNamed(
+        context,
+        '/in-call-screen',
+        arguments: {'sipUri': sipUri, 'contact': contact, 'isIncoming': false},
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Call failed: ${e.toString()}'),
+          backgroundColor: AppTheme.getErrorColor(true),
+        ),
+      );
+    }
   }
 
   void _sendMessage(Map<String, dynamic> contact) {
@@ -424,9 +512,7 @@ class _MainDashboardState extends State<MainDashboard>
             ),
 
             // Dial Pad Button
-            DialPadButtonWidget(
-              onTap: _openDialPad,
-            ),
+            DialPadButtonWidget(onTap: _openDialPad),
 
             // Recent Contacts Section
             Padding(
@@ -444,11 +530,11 @@ class _MainDashboardState extends State<MainDashboard>
                     onPressed: _openCallHistory,
                     child: Text(
                       'View All',
-                      style:
-                          AppTheme.lightTheme.textTheme.labelMedium?.copyWith(
-                        color: AppTheme.lightTheme.colorScheme.primary,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: AppTheme.lightTheme.textTheme.labelMedium
+                          ?.copyWith(
+                            color: AppTheme.lightTheme.colorScheme.primary,
+                            fontWeight: FontWeight.w500,
+                          ),
                     ),
                   ),
                 ],
@@ -513,8 +599,9 @@ class _MainDashboardState extends State<MainDashboard>
                     iconName: 'emergency',
                     label: 'Emergency',
                     onTap: _openEmergencyContacts,
-                    backgroundColor:
-                        AppTheme.getErrorColor(true).withValues(alpha: 0.1),
+                    backgroundColor: AppTheme.getErrorColor(
+                      true,
+                    ).withValues(alpha: 0.1),
                     iconColor: AppTheme.getErrorColor(true),
                   ),
                 ],

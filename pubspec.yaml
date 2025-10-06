@@ -29,6 +29,8 @@ dependencies:
   file_picker: ^8.1.7
   permission_handler: ^11.1.0
   record: ^6.0.0
+  gv_core:
+    path: ../../plugins/gv_core
 
 dev_dependencies:
   flutter_test:    # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
@@ -40,6 +42,7 @@ flutter:
   assets:
     - assets/
     - assets/images/
+    - assets/images/shield_blue.png
   # CRITICAL ASSET MANAGEMENT RULES:
   # - DO NOT ADD NEW ASSET DIRECTORIES (assets/svg/, assets/icons/, etc.)
   # - ONLY USE EXISTING AND ITEMS AVAILABLE IN THE DIRECTORIES LISTED ABOVE (assets/, assets/images/)
