@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sizer/sizer.dart';
 
-import '../core/app_export.dart';
-import '../widgets/custom_error_widget.dart';
+import './widgets/custom_error_widget.dart';
+import 'core/app_export.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,17 +31,25 @@ void main() async {
   Future.wait([
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp])
   ]).then((value) {
-    runApp(MyApp());
+    runApp(GVApp());
   });
 }
 
-class MyApp extends StatelessWidget {
+class GVApp extends StatelessWidget {
+  const GVApp({super.key});
+
   @override
   Widget build(BuildContext context) {
+    final scheme = ColorScheme.fromSeed(
+        seedColor: const Color(0xFF1E46FF), brightness: Brightness.light);
+
     return Sizer(builder: (context, orientation, screenType) {
       return MaterialApp(
-        title: 'guardian_voice_uc',
-        theme: AppTheme.lightTheme,
+        title: 'Guardian Voice UC',
+        theme: ThemeData(
+            colorScheme: scheme,
+            useMaterial3: true,
+            scaffoldBackgroundColor: Colors.white),
         darkTheme: AppTheme.darkTheme,
         themeMode: ThemeMode.light,
         // 🚨 CRITICAL: NEVER REMOVE OR MODIFY
@@ -56,7 +64,7 @@ class MyApp extends StatelessWidget {
         // 🚨 END CRITICAL SECTION
         debugShowCheckedModeBanner: false,
         routes: AppRoutes.routes,
-        initialRoute: AppRoutes.initial,
+        initialRoute: AppRoutes.splash,
       );
     });
   }

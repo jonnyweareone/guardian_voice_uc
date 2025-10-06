@@ -15,11 +15,6 @@ import './widgets/microphone_level_widget.dart';
 import './widgets/settings_item_widget.dart';
 import './widgets/settings_section_widget.dart';
 import './widgets/settings_switch_widget.dart';
-import 'widgets/codec_selector_widget.dart';
-import 'widgets/microphone_level_widget.dart';
-import 'widgets/settings_item_widget.dart';
-import 'widgets/settings_section_widget.dart';
-import 'widgets/settings_switch_widget.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
