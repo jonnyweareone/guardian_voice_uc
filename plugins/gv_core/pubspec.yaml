@@ -1,0 +1,22 @@
+name: gv_core
+description: Guardian Voice UC native glue (Push + Call UI + SIP/media via liblinphone)
+version: 0.1.0
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.guardianvoice.uc.core
+        pluginClass: GvCorePlugin
+      ios:
+        pluginClass: GvCorePlugin
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
