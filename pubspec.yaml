@@ -30,7 +30,7 @@ dependencies:
   permission_handler: ^11.1.0
   record: ^6.0.0
   gv_core:
-    path: ../../plugins/gv_core
+    path: ./plugins/gv_core
 
 dev_dependencies:
   flutter_test:    # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
