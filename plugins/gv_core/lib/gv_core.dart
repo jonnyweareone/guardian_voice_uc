@@ -1,49 +1,144 @@
-library gv_core;
-
-import 'dart:async';
 import 'package:flutter/services.dart';
 
-class GVIncoming {
-  final String callId;
-  final String fromDisplay;
-  final String fromUri;
-  GVIncoming(this.callId, this.fromDisplay, this.fromUri);
-}
-
 class GVCore {
-  GVCore._();
-  static final GVCore I = GVCore._();
-
-  static const MethodChannel _m = MethodChannel('gv/core/methods');
-  static const EventChannel _calls = EventChannel('gv/core/calls');
-
-  Stream<GVIncoming> get onIncoming =>
-      _calls.receiveBroadcastStream().map((e) => GVIncoming(
-          e['callId'], e['fromDisplay'] ?? '', e['fromUri'] ?? ''));
-
-  Future<void> initialize({required bool enablePush}) =>
-      _m.invokeMethod('initialize', {'enablePush': enablePush});
-
-  Future<void> registerPushToken({required String token, required String platform}) =>
-      _m.invokeMethod('registerPushToken', {'token': token, 'platform': platform});
-
-  Future<void> setAccount({
-    required String username,
+  static const MethodChannel _channel = MethodChannel('gv_core');
+  
+  Future<void> initialize() async {
+    try {
+      await _channel.invokeMethod('initialize');
+    } on PlatformException catch (e) {
+      print('Failed to initialize GVCore: ${e.message}');
+      rethrow;
+    }
+  }
+  
+  Future<void> setProxy({
     required String domain,
-    required String password,
-    bool tls = true,
-    int port = 6061,
-    bool srtp = true,
-    String? stun,
-    String? turn,
-  }) => _m.invokeMethod('setAccount', {
-        'username': username, 'domain': domain, 'password': password,
-        'tls': tls, 'port': port, 'srtp': srtp, 'stun': stun, 'turn': turn,
+    required int port,
+    required String transport,
+  }) async {
+    try {
+      await _channel.invokeMethod('setProxy', {
+        'domain': domain,
+        'port': port,
+        'transport': transport,
       });
-
-  Future<void> placeCall(String sipUri) => _m.invokeMethod('placeCall', {'uri': sipUri});
-  Future<void> answer(String callId) => _m.invokeMethod('answer', {'callId': callId});
-  Future<void> hangup(String callId) => _m.invokeMethod('hangup', {'callId': callId});
-  Future<void> mute(String callId, bool on) => _m.invokeMethod('mute', {'callId': callId, 'on': on});
-  Future<void> hold(String callId, bool on) => _m.invokeMethod('hold', {'callId': callId, 'on': on});
+    } on PlatformException catch (e) {
+      print('Failed to set proxy: ${e.message}');
+      rethrow;
+    }
+  }
+  
+  Future<void> setStunServer(String server) async {
+    try {
+      await _channel.invokeMethod('setStunServer', {'server': server});
+    } on PlatformException catch (e) {
+      print('Failed to set STUN server: ${e.message}');
+      rethrow;
+    }
+  }
+  
+  Future<void> enableEchoCancellation(bool enable) async {
+    try {
+      await _channel.invokeMethod('enableEchoCancellation', {'enable': enable});
+    } on PlatformException catch (e) {
+      print('Failed to set echo cancellation: ${e.message}');
+      rethrow;
+    }
+  }
+  
+  Future<void> setAudioCodecs(List<String> codecs) async {
+    try {
+      await _channel.invokeMethod('setAudioCodecs', {'codecs': codecs});
+    } on PlatformException catch (e) {
+      print('Failed to set audio codecs: ${e.message}');
+      rethrow;
+    }
+  }
+  
+  Future<bool> register({
+    required String username,
+    required String password,
+    required String domain,
+  }) async {
+    try {
+      final result = await _channel.invokeMethod('register', {
+        'username': username,
+        'password': password,
+        'domain': domain,
+      });
+      return result ?? false;
+    } on PlatformException catch (e) {
+      print('Failed to register: ${e.message}');
+      return false;
+    }
+  }
+  
+  Future<void> unregister() async {
+    try {
+      await _channel.invokeMethod('unregister');
+    } on PlatformException catch (e) {
+      print('Failed to unregister: ${e.message}');
+      rethrow;
+    }
+  }
+  
+  Future<bool> makeCall(String number) async {
+    try {
+      final result = await _channel.invokeMethod('makeCall', {'number': number});
+      return result ?? false;
+    } on PlatformException catch (e) {
+      print('Failed to make call: ${e.message}');
+      return false;
+    }
+  }
+  
+  Future<void> answerCall() async {
+    try {
+      await _channel.invokeMethod('answerCall');
+    } on PlatformException catch (e) {
+      print('Failed to answer call: ${e.message}');
+      rethrow;
+    }
+  }
+  
+  Future<void> endCall() async {
+    try {
+      await _channel.invokeMethod('endCall');
+    } on PlatformException catch (e) {
+      print('Failed to end call: ${e.message}');
+      rethrow;
+    }
+  }
+  
+  Future<void> toggleMute() async {
+    try {
+      await _channel.invokeMethod('toggleMute');
+    } on PlatformException catch (e) {
+      print('Failed to toggle mute: ${e.message}');
+      rethrow;
+    }
+  }
+  
+  Future<void> toggleSpeaker() async {
+    try {
+      await _channel.invokeMethod('toggleSpeaker');
+    } on PlatformException catch (e) {
+      print('Failed to toggle speaker: ${e.message}');
+      rethrow;
+    }
+  }
+  
+  Future<void> sendDTMF(String digit) async {
+    try {
+      await _channel.invokeMethod('sendDTMF', {'digit': digit});
+    } on PlatformException catch (e) {
+      print('Failed to send DTMF: ${e.message}');
+      rethrow;
+    }
+  }
+  
+  void dispose() {
+    // Cleanup resources if needed
+  }
 }

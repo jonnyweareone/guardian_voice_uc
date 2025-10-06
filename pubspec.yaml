@@ -29,6 +29,9 @@ dependencies:
   file_picker: ^8.1.7
   permission_handler: ^11.1.0
   record: ^6.0.0
+  flutter_local_notifications: ^17.0.0
+  firebase_core: ^2.24.2
+  firebase_messaging: ^14.7.10
   gv_core:
     path: ./plugins/gv_core
 

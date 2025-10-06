@@ -4,7 +4,11 @@
 <dict>
 	<key>aps-environment</key>
 	<string>development</string>
-	<key>com.apple.developer.pushkit.unrestricted-voip</key>
+	<key>com.apple.developer.push-to-talk</key>
 	<true/>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:guardianvoice.co.uk</string>
+	</array>
 </dict>
 </plist>

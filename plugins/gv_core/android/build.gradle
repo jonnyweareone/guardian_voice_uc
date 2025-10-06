@@ -8,6 +8,6 @@ android {
   defaultConfig { minSdk 24 }
 }
 dependencies {
-  implementation "org.linphone:linphone-sdk-android:5.3+"
+  implementation "org.linphone:linphone-sdk-android:5.3.50"
   implementation 'com.google.firebase:firebase-messaging:24.0.0'
 }
