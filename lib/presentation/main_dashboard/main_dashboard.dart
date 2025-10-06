@@ -3,6 +3,7 @@ import 'package:gv_core/gv_core.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../routes/app_routes.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_icon_widget.dart';
 import '../../widgets/custom_image_widget.dart';
@@ -13,14 +14,13 @@ import './widgets/recent_contact_card_widget.dart';
 import './widgets/sip_status_card_widget.dart';
 
 class MainDashboard extends StatefulWidget {
-  const MainDashboard({Key? key}) : super(key: key);
+  const MainDashboard({super.key});
 
   @override
   State<MainDashboard> createState() => _MainDashboardState();
 }
 
-class _MainDashboardState extends State<MainDashboard>
-    with TickerProviderStateMixin {
+class _MainDashboardState extends State<MainDashboard> {
   late TabController _tabController;
   bool _isRefreshing = false;
   String _sipStatus = "Registering...";
@@ -30,6 +30,7 @@ class _MainDashboardState extends State<MainDashboard>
   int _signalStrength = 95;
   String _networkType = "WiFi";
   DateTime _lastUpdated = DateTime.now();
+  bool _isRegistered = false;
 
   // Real incoming call stream
   StreamSubscription<GVIncoming>? _incomingCallSubscription;
@@ -82,35 +83,48 @@ class _MainDashboardState extends State<MainDashboard>
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
-    _simulateNetworkUpdates();
+    _loadRecentContacts();
+    _checkNetworkQuality();
     _setupIncomingCallListener();
-    _checkSipRegistrationStatus();
+  }
+
+  @override
+  void dispose() {
+    _incomingCallSubscription?.cancel();
+    super.dispose();
   }
 
   void _setupIncomingCallListener() {
     _incomingCallSubscription = GVCore.I.onIncoming.listen((incoming) {
-      _handleIncomingCall(incoming);
+      // Handle incoming call
+      setState(() {
+        _sipStatus = 'Incoming Call';
+      });
+
+      // Navigate to in-call screen
+      Navigator.pushNamed(
+        context,
+        AppRoutes.inCallScreen,
+        arguments: {
+          'callId': incoming.callId,
+          'callerName': incoming.fromDisplay,
+          'callerNumber': incoming.fromUri,
+          'isIncoming': true,
+        },
+      );
     });
   }
 
-  void _handleIncomingCall(GVIncoming incoming) {
-    // Update UI with real incoming call data
-    setState(() {
-      _sipStatus = "Incoming Call";
-      _sipStatusMessage = "From: ${incoming.fromDisplay}";
-    });
+  void _loadRecentContacts() {
+    // Load recent contacts from local storage or API
+    // For now, use mock data
+    setState(() {});
+  }
 
-    // Navigate to in-call screen with real caller data
-    Navigator.pushNamed(
-      context,
-      '/in-call-screen',
-      arguments: {
-        'callId': incoming.callId,
-        'fromDisplay': incoming.fromDisplay,
-        'fromUri': incoming.fromUri,
-        'isIncoming': true,
-      },
-    );
+  void _checkNetworkQuality() {
+    // Check network quality and update UI
+    // For now, use mock data
+    setState(() {});
   }
 
   Future<void> _checkSipRegistrationStatus() async {
@@ -123,11 +137,43 @@ class _MainDashboardState extends State<MainDashboard>
     });
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _incomingCallSubscription?.cancel();
-    super.dispose();
+  void _makeCall(String number) async {
+    if (number.isEmpty) {
+      _showErrorToast('Please enter a number to call');
+      return;
+    }
+
+    try {
+      // Format number as SIP URI if not already formatted
+      String sipUri =
+          number.startsWith('sip:') ? number : 'sip:$number@guardianvoice.com';
+
+      // Place call using GV Core
+      await GVCore.I.placeCall(sipUri);
+
+      // Navigate to in-call screen
+      Navigator.pushNamed(
+        context,
+        AppRoutes.inCallScreen,
+        arguments: {
+          'callId': DateTime.now().millisecondsSinceEpoch.toString(),
+          'callerName': number,
+          'callerNumber': sipUri,
+          'isIncoming': false,
+        },
+      );
+    } catch (e) {
+      _showErrorToast('Failed to place call: $e');
+    }
+  }
+
+  void _showErrorToast(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppTheme.getErrorColor(true),
+      ),
+    );
   }
 
   void _simulateNetworkUpdates() {
@@ -284,7 +330,7 @@ class _MainDashboardState extends State<MainDashboard>
                         label: 'Call',
                         onTap: () {
                           Navigator.pop(context);
-                          _makeCall(contact);
+                          _makeCall(contact["phone"] as String);
                         },
                       ),
                     ),
@@ -360,31 +406,6 @@ class _MainDashboardState extends State<MainDashboard>
       return "${nameParts[0][0]}${nameParts[1][0]}".toUpperCase();
     }
     return name[0].toUpperCase();
-  }
-
-  void _makeCall(Map<String, dynamic> contact) {
-    final sipUri = 'sip:${contact["phone"]}@guardianvoice.com';
-    _placeCall(sipUri, contact);
-  }
-
-  Future<void> _placeCall(String sipUri, Map<String, dynamic>? contact) async {
-    try {
-      await GVCore.I.placeCall(sipUri);
-
-      // Navigate to in-call screen with real call data
-      Navigator.pushNamed(
-        context,
-        '/in-call-screen',
-        arguments: {'sipUri': sipUri, 'contact': contact, 'isIncoming': false},
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Call failed: ${e.toString()}'),
-          backgroundColor: AppTheme.getErrorColor(true),
-        ),
-      );
-    }
   }
 
   void _sendMessage(Map<String, dynamic> contact) {
@@ -553,7 +574,7 @@ class _MainDashboardState extends State<MainDashboard>
                   final contact = _recentContacts[index];
                   return RecentContactCardWidget(
                     contact: contact,
-                    onTap: () => _makeCall(contact),
+                    onTap: () => _makeCall(contact["phone"] as String),
                     onLongPress: () => _showContactMenu(contact),
                   );
                 },

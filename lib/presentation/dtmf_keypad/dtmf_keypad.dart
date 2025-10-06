@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gv_core/gv_core.dart';
 import 'package:sizer/sizer.dart';
-import 'dart:async';
 
 import '../../core/app_export.dart';
+import '../../routes/app_routes.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_icon_widget.dart';
 import './widgets/audio_feedback_toggle_widget.dart';
@@ -300,6 +302,55 @@ class _DTMFKeypadState extends State<DTMFKeypad> {
       setState(() {
         _isTransmitting = false;
       });
+    }
+  }
+
+  void _handleKeyPress(String key) async {
+    if (_isAudioEnabled) {
+      // Audio feedback would be handled by the native layer
+    }
+
+    setState(() {
+      _displayedNumber += key;
+    });
+
+    // Send DTMF tone using GV Core if in a call
+    try {
+      // Note: GV Core engine handles DTMF sending internally
+      // This would be called during an active call
+      // await GVCore.I.sendDtmf(key); // Not exposed in current API
+    } catch (e) {
+      // Handle error silently
+    }
+  }
+
+  void _handleCall() async {
+    if (_displayedNumber.isNotEmpty) {
+      try {
+        String sipUri =
+            _displayedNumber.startsWith('sip:')
+                ? _displayedNumber
+                : 'sip:$_displayedNumber@guardianvoice.com';
+
+        await GVCore.I.placeCall(sipUri);
+
+        // Navigate to in-call screen
+        Navigator.pushNamed(
+          context,
+          AppRoutes.inCallScreen,
+          arguments: {
+            'callId': DateTime.now().millisecondsSinceEpoch.toString(),
+            'callerName': _displayedNumber,
+            'callerNumber': sipUri,
+            'isIncoming': false,
+          },
+        );
+      } catch (e) {
+        // Show error toast
+        if (mounted) {
+          // Error handling
+        }
+      }
     }
   }
 

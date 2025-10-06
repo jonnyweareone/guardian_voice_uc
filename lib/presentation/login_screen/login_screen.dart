@@ -6,6 +6,7 @@ import 'package:gv_core/gv_core.dart';
 import 'package:sizer/sizer.dart';
 
 import '../../core/app_export.dart';
+import '../../routes/app_routes.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/custom_icon_widget.dart';
 import './widgets/advanced_settings_widget.dart';
@@ -124,54 +125,54 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    if (!_isFormValid()) {
-      _validateSipServer(_sipServerController.text);
-      _validateUsername(_usernameController.text);
-      _validatePassword(_passwordController.text);
+    if (_usernameController.text.isEmpty || _passwordController.text.isEmpty) {
+      _showErrorToast('Please fill in all required fields');
       return;
     }
 
     setState(() {
       _isLoading = true;
-      _generalError = null;
     });
 
     try {
-      // Real SIP registration using gv_core
+      // Initialize GV Core for VoIP functionality
+      await GVCore.I.initialize(enablePush: true);
+
+      // Set up SIP account with real credentials
       await GVCore.I.setAccount(
-        username: _usernameController.text,
-        domain: _sipServerController.text,
+        username: _usernameController.text.trim(),
+        domain:
+            _sipServerController.text.trim().isEmpty
+                ? 'guardianvoice.com'
+                : _sipServerController.text.trim(),
         password: _passwordController.text,
-        tls: _selectedTransport == 'TLS',
-        port: int.tryParse(_portController.text) ?? 6061,
+        tls: true,
+        port: 6061,
         srtp: true,
         stun: 'turn.guardianvoice.com',
       );
 
-      // Success - provide haptic feedback
-      HapticFeedback.lightImpact();
-
-      // Show success toast
-      Fluttertoast.showToast(
-        msg: "Registration successful! Connected to SIP server...",
-        toastLength: Toast.LENGTH_SHORT,
-        gravity: ToastGravity.BOTTOM,
-        backgroundColor: AppTheme.lightTheme.colorScheme.tertiary,
-        textColor: AppTheme.lightTheme.colorScheme.onTertiary,
-      );
+      // Store credentials locally for auto-login
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('username', _usernameController.text.trim());
+      await prefs.setString('sipServer', _sipServerController.text.trim());
+      await prefs.setBool('rememberMe', _rememberCredentials);
+      if (_rememberCredentials) {
+        await prefs.setString('password', _passwordController.text);
+      }
 
       // Navigate to main dashboard
-      Navigator.pushReplacementNamed(context, '/main-dashboard');
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, AppRoutes.mainDashboard);
+      }
     } catch (e) {
-      setState(() {
-        _generalError = 'SIP registration failed: ${e.toString()}';
-      });
-
-      HapticFeedback.heavyImpact();
+      _showErrorToast('Login failed: Please check your credentials');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

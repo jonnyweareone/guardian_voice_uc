@@ -138,6 +138,57 @@ class _InCallScreenState extends State<InCallScreen>
     super.dispose();
   }
 
+  void _handleMute() async {
+    try {
+      await GVCore.I.mute(widget.callId, !_isMuted);
+      setState(() {
+        _isMuted = !_isMuted;
+      });
+    } catch (e) {
+      // Handle error silently or show toast
+    }
+  }
+
+  void _handleHold() async {
+    try {
+      await GVCore.I.hold(widget.callId, !_isOnHold);
+      setState(() {
+        _isOnHold = !_isOnHold;
+        if (_isOnHold) {
+          _callDurationTimer?.cancel();
+        } else {
+          _startTimer();
+        }
+      });
+    } catch (e) {
+      // Handle error silently or show toast
+    }
+  }
+
+  void _handleEndCall() async {
+    try {
+      await GVCore.I.hangup(widget.callId);
+      Navigator.of(context).pop();
+    } catch (e) {
+      // Even if hangup fails, navigate back
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _handleAnswer() async {
+    if (widget.isIncoming) {
+      try {
+        await GVCore.I.answer(widget.callId);
+        setState(() {
+          _callStatus = 'Connected';
+        });
+        _startTimer();
+      } catch (e) {
+        _handleEndCall();
+      }
+    }
+  }
+
   Future<void> _handleMuteToggle() async {
     try {
       await GVCore.I.mute(_callId ?? '', !_isMuted);
@@ -232,41 +283,6 @@ class _InCallScreenState extends State<InCallScreen>
   void _handleKeypadOpen() {
     HapticFeedback.lightImpact();
     Navigator.pushNamed(context, '/dtmf-keypad');
-  }
-
-  Future<void> _handleEndCall() async {
-    HapticFeedback.heavyImpact();
-
-    try {
-      await GVCore.I.hangup(_callId ?? '');
-
-      Navigator.pushReplacementNamed(context, '/main-dashboard');
-    } catch (e) {
-      print('End call failed: $e');
-      // Still navigate back on error
-      Navigator.pushReplacementNamed(context, '/main-dashboard');
-    }
-  }
-
-  Future<void> _handleAnswerCall() async {
-    if (!_isIncoming || _callId == null) return;
-
-    try {
-      await GVCore.I.answer(_callId!);
-
-      setState(() {
-        _isIncoming = false; // Mark as answered
-      });
-
-      HapticFeedback.lightImpact();
-    } catch (e) {
-      print('Answer call failed: $e');
-    }
-  }
-
-  void _handleAudioDevicePicker() {
-    HapticFeedback.lightImpact();
-    Navigator.pushNamed(context, '/audio-device-picker');
   }
 
   void _handleMinimize() {
